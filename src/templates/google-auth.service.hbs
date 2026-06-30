@@ -1,0 +1,33 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { OAuth2Client } from 'google-auth-library';
+import { TokenPayload } from '../interfaces/token-payload.interface';
+
+@Injectable()
+export class GoogleAuthService {
+  private readonly client: OAuth2Client;
+
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly config: ConfigService,
+  ) {
+    this.client = new OAuth2Client(config.getOrThrow<string>('GOOGLE_CLIENT_ID'));
+  }
+
+  async loginWithGoogle(idToken: string): Promise<{ accessToken: string }> {
+    const ticket = await this.client.verifyIdToken({
+      idToken,
+      audience: this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+    });
+    const googlePayload = ticket.getPayload();
+    if (!googlePayload?.email) throw new UnauthorizedException('Invalid Google token');
+
+    // TODO: find or create a user in your database using googlePayload.email
+    // Example:
+    //   const user = await this.usersService.findOrCreate({ email: googlePayload.email });
+
+    const payload: TokenPayload = { sub: googlePayload.sub, email: googlePayload.email };
+    return { accessToken: this.jwtService.sign(payload) };
+  }
+}

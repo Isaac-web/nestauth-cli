@@ -5,9 +5,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AccessTokenGuard } from './access-token.guard';
 import { AuthType } from '../enums/auth-type.enum';
 import { AUTH_TYPE_KEY } from '../decorators/auth.decorator';
+import { JwtGuard } from './jwt.guard';
 
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
@@ -17,10 +17,10 @@ export class AuthenticationGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly accessTokenGuard: AccessTokenGuard,
+    private readonly jwtGuard: JwtGuard,
   ) {
     this.authTypeGuardMap = {
-      [AuthType.Bearer]: this.accessTokenGuard,
+      [AuthType.Bearer]: this.jwtGuard,
       [AuthType.None]: { canActivate: () => true },
     };
   }
@@ -32,15 +32,13 @@ export class AuthenticationGuard implements CanActivate {
     ]) ?? [AuthenticationGuard.defaultAuthType];
 
     const guards = authTypes.map((type) => this.authTypeGuardMap[type]).flat();
-    let error = new UnauthorizedException();
+    let error: Error = new UnauthorizedException();
 
     for (const instance of guards) {
-      const canActivate = await Promise.resolve(instance.canActivate(context)).catch(
-        (err) => {
-          error = err;
-          return false;
-        },
-      );
+      const canActivate = await Promise.resolve(instance.canActivate(context)).catch((err) => {
+        error = err;
+        return false;
+      });
       if (canActivate) return true;
     }
 

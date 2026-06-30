@@ -8,20 +8,12 @@ import { generateFromTemplate } from '../utils/generator';
 import { installPackages } from '../utils/packages';
 
 interface InitAnswers {
-  providers: string[];
   refreshTokens: boolean;
   setupConfigModule: boolean;
 }
 
 export async function initCommand(): Promise<void> {
   const answers = await inquirer.prompt<InitAnswers>([
-    {
-      type: 'checkbox',
-      name: 'providers',
-      message: 'Which auth providers do you need?',
-      choices: ['Email / Password', 'Google OAuth'],
-      default: ['Email / Password'],
-    },
     {
       type: 'confirm',
       name: 'refreshTokens',
@@ -56,20 +48,28 @@ export async function initCommand(): Promise<void> {
         target: path.join(authPath, 'decorators', 'current-user.decorator.ts'),
       },
       {
-        template: 'access-token.guard.hbs',
-        target: path.join(authPath, 'guards', 'access-token.guard.ts'),
+        template: 'jwt.guard.hbs',
+        target: path.join(authPath, 'guards', 'jwt.guard.ts'),
       },
       {
         template: 'authentication.guard.hbs',
         target: path.join(authPath, 'guards', 'authentication.guard.ts'),
       },
       {
-        template: 'jwt.strategy.hbs',
-        target: path.join(authPath, 'strategies', 'jwt.strategy.ts'),
+        template: 'token-payload.interface.hbs',
+        target: path.join(authPath, 'interfaces', 'token-payload.interface.ts'),
       },
       {
-        template: 'auth.service.hbs',
-        target: path.join(authPath, 'auth.service.ts'),
+        template: 'email-auth.module.hbs',
+        target: path.join(authPath, 'email', 'email-auth.module.ts'),
+      },
+      {
+        template: 'email-auth.service.hbs',
+        target: path.join(authPath, 'email', 'email-auth.service.ts'),
+      },
+      {
+        template: 'email-auth.controller.hbs',
+        target: path.join(authPath, 'email', 'email-auth.controller.ts'),
       },
       {
         template: 'auth.module.hbs',
@@ -81,29 +81,17 @@ export async function initCommand(): Promise<void> {
       await generateFromTemplate(template, target);
     }
 
-    const envLines = [
-      'JWT_ACCESS_SECRET=',
-      'JWT_ACCESS_EXPIRATION=3600s',
-    ];
+    const envLines = ['JWT_ACCESS_SECRET=', 'JWT_ACCESS_EXPIRATION=3600'];
 
     if (answers.refreshTokens) {
       envLines.push('JWT_REFRESH_SECRET=');
       envLines.push('JWT_REFRESH_EXPIRATION=7d');
     }
 
-    if (answers.providers.includes('Google OAuth')) {
-      envLines.push('GOOGLE_CLIENT_ID=');
-      envLines.push('GOOGLE_CLIENT_SECRET=');
-    }
-
     await fs.outputFile(path.join(cwd, '.env.example'), envLines.join('\n') + '\n');
 
     spinner.text = 'Installing packages...';
-    await installPackages(
-      cwd,
-      ['@nestjs/jwt', '@nestjs/passport', '@nestjs/config', 'passport', 'passport-jwt'],
-      ['@types/passport-jwt'],
-    );
+    await installPackages(cwd, ['@nestjs/jwt', '@nestjs/config'], []);
 
     const appModuleUpdated = await registerAuthModule(cwd, answers.setupConfigModule);
 
@@ -118,26 +106,19 @@ export async function initCommand(): Promise<void> {
     if (appModuleUpdated) {
       console.log('  ' + chalk.cyan('src/app.module.ts') + chalk.dim(' (AuthModule registered)'));
     } else {
-      console.log(
-        '\n' + chalk.yellow('→ Manually import AuthModule into your AppModule.'),
-      );
-    }
-
-    if (answers.providers.includes('Google OAuth')) {
-      console.log(
-        '\n' + chalk.yellow('→ Run `nest-auth add google` to generate Google OAuth files.'),
-      );
+      console.log('\n' + chalk.yellow('→ Manually import AuthModule into your AppModule.'));
     }
 
     if (!answers.setupConfigModule) {
       console.log(
-        '\n' + chalk.yellow('→ Make sure ConfigModule is configured in your AppModule so ConfigService is available.'),
+        '\n' +
+          chalk.yellow(
+            '→ Make sure ConfigModule is configured in your AppModule so ConfigService is available.',
+          ),
       );
     }
 
-    console.log(
-      '\n' + chalk.dim('Next: set your JWT secrets in .env (see .env.example).'),
-    );
+    console.log('\n' + chalk.dim('Next: set your JWT secrets in .env (see .env.example).'));
   } catch (err) {
     spinner.fail(chalk.red('Failed to generate auth structure.'));
     throw err;

@@ -2,6 +2,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
+import { Project, QuoteKind, IndentationText, SyntaxKind } from 'ts-morph';
 import { generateFromTemplate } from '../utils/generator';
 import { installPackages } from '../utils/packages';
 
@@ -24,18 +25,9 @@ export async function addCommand(provider: string): Promise<void> {
 
   if (!(await fs.pathExists(authPath))) {
     console.error(
-      chalk.red('Auth structure not found.') +
-        ' Run ' +
-        chalk.cyan('nest-auth init') +
-        ' first.',
+      chalk.red('Auth structure not found.') + ' Run ' + chalk.cyan('nest-auth init') + ' first.',
     );
     process.exit(1);
-  }
-
-  const strategyPath = path.join(authPath, 'strategies', `${normalized}.strategy.ts`);
-  if (await fs.pathExists(strategyPath)) {
-    console.log(chalk.yellow(`${provider} has already been added.`));
-    return;
   }
 
   if (normalized === 'google') {
@@ -44,47 +36,121 @@ export async function addCommand(provider: string): Promise<void> {
 }
 
 async function addGoogle(cwd: string, authPath: string): Promise<void> {
-  const spinner = ora('Adding Google OAuth...').start();
+  const googlePath = path.join(authPath, 'google');
+
+  if (await fs.pathExists(googlePath)) {
+    console.log(chalk.yellow('Google login has already been added.'));
+    return;
+  }
+
+  const spinner = ora('Adding Google login...').start();
 
   try {
-    const strategyTarget = path.join(authPath, 'strategies', 'google.strategy.ts');
-    const controllerTarget = path.join(authPath, 'controllers', 'google.controller.ts');
+    const files = [
+      {
+        template: 'google-auth.module.hbs',
+        target: path.join(googlePath, 'google-auth.module.ts'),
+      },
+      {
+        template: 'google-auth.service.hbs',
+        target: path.join(googlePath, 'google-auth.service.ts'),
+      },
+      {
+        template: 'google-auth.controller.hbs',
+        target: path.join(googlePath, 'google-auth.controller.ts'),
+      },
+    ];
 
-    await generateFromTemplate('google.strategy.hbs', strategyTarget);
-    await generateFromTemplate('google.controller.hbs', controllerTarget);
+    for (const { template, target } of files) {
+      await generateFromTemplate(template, target);
+    }
 
     const envPath = path.join(cwd, '.env.example');
-    const existing = (await fs.pathExists(envPath))
-      ? await fs.readFile(envPath, 'utf-8')
-      : '';
-
+    const existing = (await fs.pathExists(envPath)) ? await fs.readFile(envPath, 'utf-8') : '';
     if (!existing.includes('GOOGLE_CLIENT_ID')) {
-      await fs.appendFile(
-        envPath,
-        '\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nGOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback\n',
-      );
+      await fs.appendFile(envPath, '\nGOOGLE_CLIENT_ID=\n');
     }
 
     spinner.text = 'Installing packages...';
-    await installPackages(cwd, ['passport-google-oauth20'], ['@types/passport-google-oauth20']);
+    await installPackages(cwd, ['google-auth-library'], []);
 
-    spinner.succeed(chalk.green('Google OAuth files generated.'));
+    spinner.text = 'Registering GoogleAuthModule...';
+    await registerGoogleModule(authPath);
+
+    spinner.succeed(chalk.green('Google login added.'));
 
     console.log('\n' + chalk.bold('Generated files:'));
-    console.log('  ' + chalk.cyan(path.relative(cwd, strategyTarget)));
-    console.log('  ' + chalk.cyan(path.relative(cwd, controllerTarget)));
+    for (const { target } of files) {
+      console.log('  ' + chalk.cyan(path.relative(cwd, target)));
+    }
+    console.log('  ' + chalk.cyan('src/auth/auth.module.ts') + chalk.dim(' (GoogleAuthModule registered)'));
 
     console.log('\n' + chalk.bold('Next steps:'));
     console.log(
-      '  1. Register ' +
-        chalk.cyan('GoogleStrategy') +
-        ' and ' +
-        chalk.cyan('GoogleController') +
-        ' in your AuthModule.',
+      '  1. Add ' +
+        chalk.cyan('GOOGLE_CLIENT_ID') +
+        ' to your ' +
+        chalk.cyan('.env') +
+        ' file.',
     );
-    console.log('  2. Fill in the Google vars in ' + chalk.cyan('.env.example') + '.');
+    console.log(
+      '  2. In ' +
+        chalk.cyan('google-auth.service.ts') +
+        ', add your user find-or-create logic after token verification.',
+    );
   } catch (err) {
-    spinner.fail(chalk.red('Failed to add Google OAuth.'));
+    spinner.fail(chalk.red('Failed to add Google login.'));
     throw err;
   }
+}
+
+async function registerGoogleModule(authPath: string): Promise<void> {
+  const authModulePath = path.join(authPath, 'auth.module.ts');
+  if (!(await fs.pathExists(authModulePath))) return;
+
+  const project = new Project({
+    skipAddingFilesFromTsConfig: true,
+    manipulationSettings: {
+      indentationText: IndentationText.TwoSpaces,
+      quoteKind: QuoteKind.Single,
+    },
+  });
+
+  const sourceFile = project.addSourceFileAtPath(authModulePath);
+
+  const hasImportDecl = sourceFile
+    .getImportDeclarations()
+    .some((i) => i.getModuleSpecifierValue().includes('google/google-auth.module'));
+
+  if (!hasImportDecl) {
+    sourceFile.addImportDeclaration({
+      namedImports: ['GoogleAuthModule'],
+      moduleSpecifier: './google/google-auth.module',
+    });
+  }
+
+  for (const cls of sourceFile.getClasses()) {
+    const decorator = cls.getDecorator('Module');
+    if (!decorator) continue;
+
+    const arg = decorator.getArguments()[0];
+    if (!arg) continue;
+
+    const objLiteral = arg.asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
+    const importsProp = objLiteral.getProperty('imports');
+    if (!importsProp) continue;
+
+    const arrayLiteral = importsProp
+      .asKindOrThrow(SyntaxKind.PropertyAssignment)
+      .getInitializerIfKindOrThrow(SyntaxKind.ArrayLiteralExpression);
+
+    const elements = arrayLiteral.getElements().map((el) => el.getText().trim());
+    if (!elements.some((el) => el === 'GoogleAuthModule')) {
+      arrayLiteral.addElement('GoogleAuthModule');
+    }
+
+    break;
+  }
+
+  await sourceFile.save();
 }
