@@ -1,0 +1,7 @@
+node_modules/
+dist/
+
+# Planning docs
+project-scope.md
+tech-stack.md
+action-plan.md
