@@ -1,0 +1,22 @@
+import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthService } from './auth.service';
+import { AuthenticationGuard } from './guards/authentication.guard';
+import { AccessTokenGuard } from './guards/access-token.guard';
+import { JwtStrategy } from './strategies/jwt.strategy';
+
+@Module({
+  imports: [JwtModule.register({})],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    AccessTokenGuard,
+    {
+      provide: APP_GUARD,
+      useClass: AuthenticationGuard,
+    },
+  ],
+  exports: [AuthService],
+})
+export class AuthModule {}
