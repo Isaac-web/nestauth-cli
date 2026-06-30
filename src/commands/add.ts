@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
 import { generateFromTemplate } from '../utils/generator';
+import { installPackages } from '../utils/packages';
 
 const SUPPORTED_PROVIDERS = ['google'];
 
@@ -64,6 +65,9 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
       );
     }
 
+    spinner.text = 'Installing packages...';
+    await installPackages(cwd, ['passport-google-oauth20'], ['@types/passport-google-oauth20']);
+
     spinner.succeed(chalk.green('Google OAuth files generated.'));
 
     console.log('\n' + chalk.bold('Generated files:'));
@@ -72,19 +76,13 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
 
     console.log('\n' + chalk.bold('Next steps:'));
     console.log(
-      '  1. In your NestJS project, install: ' +
-        chalk.cyan('npm install passport-google-oauth20') +
-        ' and ' +
-        chalk.cyan('npm install -D @types/passport-google-oauth20'),
-    );
-    console.log(
-      '  2. Register ' +
+      '  1. Register ' +
         chalk.cyan('GoogleStrategy') +
         ' and ' +
         chalk.cyan('GoogleController') +
         ' in your AuthModule.',
     );
-    console.log('  3. Fill in the Google vars in ' + chalk.cyan('.env.example') + '.');
+    console.log('  2. Fill in the Google vars in ' + chalk.cyan('.env.example') + '.');
   } catch (err) {
     spinner.fail(chalk.red('Failed to add Google OAuth.'));
     throw err;

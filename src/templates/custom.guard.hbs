@@ -1,0 +1,10 @@
+import { Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext } from '@nestjs/common';
+
+@Injectable()
+export class {{pascalName}}Guard implements CanActivate {
+  canActivate(_context: ExecutionContext): boolean {
+    // TODO: implement {{pascalName}} authorization logic
+    return true;
+  }
+}

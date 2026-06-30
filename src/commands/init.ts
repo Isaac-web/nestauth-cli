@@ -3,11 +3,14 @@ import ora from 'ora';
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
+import { Project, QuoteKind, IndentationText, SyntaxKind } from 'ts-morph';
 import { generateFromTemplate } from '../utils/generator';
+import { installPackages } from '../utils/packages';
 
 interface InitAnswers {
   providers: string[];
   refreshTokens: boolean;
+  setupConfigModule: boolean;
 }
 
 export async function initCommand(): Promise<void> {
@@ -23,6 +26,12 @@ export async function initCommand(): Promise<void> {
       type: 'confirm',
       name: 'refreshTokens',
       message: 'Enable refresh tokens?',
+      default: true,
+    },
+    {
+      type: 'confirm',
+      name: 'setupConfigModule',
+      message: 'Set up ConfigModule.forRoot({ isGlobal: true }) in AppModule?',
       default: true,
     },
   ]);
@@ -89,6 +98,15 @@ export async function initCommand(): Promise<void> {
 
     await fs.outputFile(path.join(cwd, '.env.example'), envLines.join('\n') + '\n');
 
+    spinner.text = 'Installing packages...';
+    await installPackages(
+      cwd,
+      ['@nestjs/jwt', '@nestjs/passport', '@nestjs/config', 'passport', 'passport-jwt'],
+      ['@types/passport-jwt'],
+    );
+
+    const appModuleUpdated = await registerAuthModule(cwd, answers.setupConfigModule);
+
     spinner.succeed(chalk.green('Auth structure generated successfully.'));
 
     console.log('\n' + chalk.bold('Generated files:'));
@@ -97,17 +115,118 @@ export async function initCommand(): Promise<void> {
     }
     console.log('  ' + chalk.cyan('.env.example'));
 
+    if (appModuleUpdated) {
+      console.log('  ' + chalk.cyan('src/app.module.ts') + chalk.dim(' (AuthModule registered)'));
+    } else {
+      console.log(
+        '\n' + chalk.yellow('→ Manually import AuthModule into your AppModule.'),
+      );
+    }
+
     if (answers.providers.includes('Google OAuth')) {
       console.log(
         '\n' + chalk.yellow('→ Run `nest-auth add google` to generate Google OAuth files.'),
       );
     }
 
+    if (!answers.setupConfigModule) {
+      console.log(
+        '\n' + chalk.yellow('→ Make sure ConfigModule is configured in your AppModule so ConfigService is available.'),
+      );
+    }
+
     console.log(
-      '\n' + chalk.dim('Next: import AuthModule into your AppModule and configure @nestjs/config.'),
+      '\n' + chalk.dim('Next: set your JWT secrets in .env (see .env.example).'),
     );
   } catch (err) {
     spinner.fail(chalk.red('Failed to generate auth structure.'));
     throw err;
   }
+}
+
+async function registerAuthModule(cwd: string, setupConfigModule: boolean): Promise<boolean> {
+  const appModulePath = path.join(cwd, 'src', 'app.module.ts');
+  if (!(await fs.pathExists(appModulePath))) return false;
+
+  const project = new Project({
+    skipAddingFilesFromTsConfig: true,
+    manipulationSettings: {
+      indentationText: IndentationText.TwoSpaces,
+      quoteKind: QuoteKind.Single,
+    },
+  });
+
+  const sourceFile = project.addSourceFileAtPath(appModulePath);
+
+  const hasAuthImportDecl = sourceFile
+    .getImportDeclarations()
+    .some((i) => i.getModuleSpecifierValue().includes('auth/auth.module'));
+
+  if (!hasAuthImportDecl) {
+    sourceFile.addImportDeclaration({
+      namedImports: ['AuthModule'],
+      moduleSpecifier: './auth/auth.module',
+    });
+  }
+
+  let hasConfigImportDecl = false;
+  if (setupConfigModule) {
+    hasConfigImportDecl = sourceFile
+      .getImportDeclarations()
+      .some((i) => i.getModuleSpecifierValue() === '@nestjs/config');
+
+    if (!hasConfigImportDecl) {
+      sourceFile.addImportDeclaration({
+        namedImports: ['ConfigModule'],
+        moduleSpecifier: '@nestjs/config',
+      });
+    }
+  }
+
+  let addedToArray = false;
+
+  for (const cls of sourceFile.getClasses()) {
+    const decorator = cls.getDecorator('Module');
+    if (!decorator) continue;
+
+    const arg = decorator.getArguments()[0];
+    if (!arg) continue;
+
+    const objLiteral = arg.asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
+    const importsProp = objLiteral.getProperty('imports');
+
+    if (importsProp) {
+      const arrayLiteral = importsProp
+        .asKindOrThrow(SyntaxKind.PropertyAssignment)
+        .getInitializerIfKindOrThrow(SyntaxKind.ArrayLiteralExpression);
+
+      const elements = arrayLiteral.getElements().map((el) => el.getText().trim());
+
+      if (!elements.some((el) => el === 'AuthModule')) {
+        arrayLiteral.addElement('AuthModule');
+        addedToArray = true;
+      }
+
+      if (setupConfigModule && !elements.some((el) => el.startsWith('ConfigModule'))) {
+        arrayLiteral.insertElement(0, 'ConfigModule.forRoot({ isGlobal: true })');
+        addedToArray = true;
+      }
+    } else {
+      objLiteral.addPropertyAssignment({
+        name: 'imports',
+        initializer: setupConfigModule
+          ? "[ConfigModule.forRoot({ isGlobal: true }), AuthModule]"
+          : '[AuthModule]',
+      });
+      addedToArray = true;
+    }
+
+    break;
+  }
+
+  if (!hasAuthImportDecl || (setupConfigModule && !hasConfigImportDecl) || addedToArray) {
+    await sourceFile.save();
+    return true;
+  }
+  return false;
 }
