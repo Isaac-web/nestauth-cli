@@ -68,6 +68,10 @@ export async function initCommand(): Promise<void> {
 
     const baseFiles: Array<{ template: string; target: string }> = [
       {
+        template: 'auth.config.hbs',
+        target: path.join(authPath, 'config', 'auth.config.ts'),
+      },
+      {
         template: 'auth-type.enum.hbs',
         target: path.join(authPath, 'enums', 'auth-type.enum.ts'),
       },

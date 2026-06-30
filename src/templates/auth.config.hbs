@@ -1,0 +1,6 @@
+import { registerAs } from '@nestjs/config';
+
+export const authConfig = registerAs('auth', () => ({
+  accessTokenSecret: process.env.JWT_ACCESS_SECRET ?? '',
+  accessTokenExpiration: parseInt(process.env.JWT_ACCESS_EXPIRATION ?? '3600', 10),
+}));

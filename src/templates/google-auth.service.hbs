@@ -1,7 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { ConfigType } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
+import { googleAuthConfig } from './google-auth.config';
 import { TokenPayload } from '../interfaces/token-payload.interface';
 
 @Injectable()
@@ -10,15 +11,15 @@ export class GoogleAuthService {
 
   constructor(
     private readonly jwtService: JwtService,
-    private readonly config: ConfigService,
+    @Inject(googleAuthConfig.KEY) private readonly googleConfig: ConfigType<typeof googleAuthConfig>,
   ) {
-    this.client = new OAuth2Client(config.getOrThrow<string>('GOOGLE_CLIENT_ID'));
+    this.client = new OAuth2Client(this.googleConfig.clientId);
   }
 
   async loginWithGoogle(idToken: string): Promise<{ accessToken: string }> {
     const ticket = await this.client.verifyIdToken({
       idToken,
-      audience: this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+      audience: this.googleConfig.clientId,
     });
     const googlePayload = ticket.getPayload();
     if (!googlePayload?.email) throw new UnauthorizedException('Invalid Google token');

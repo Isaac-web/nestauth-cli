@@ -1,21 +1,22 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigType } from '@nestjs/config';
+import { authConfig } from '../config/auth.config';
+import { googleAuthConfig } from './google-auth.config';
 import { GoogleAuthService } from './google-auth.service';
 import { GoogleAuthController } from './google-auth.controller';
 
 @Module({
   imports: [
-    ConfigModule,
+    ConfigModule.forFeature(authConfig),
+    ConfigModule.forFeature(googleAuthConfig),
     JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        secret: config.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        signOptions: {
-          expiresIn: config.get<number>('JWT_ACCESS_EXPIRATION', 3600),
-        },
+      imports: [ConfigModule.forFeature(authConfig)],
+      useFactory: (config: ConfigType<typeof authConfig>) => ({
+        secret: config.accessTokenSecret,
+        signOptions: { expiresIn: config.accessTokenExpiration },
       }),
-      inject: [ConfigService],
+      inject: [authConfig.KEY],
     }),
   ],
   providers: [GoogleAuthService],

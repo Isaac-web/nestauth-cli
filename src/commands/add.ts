@@ -58,6 +58,10 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
     const templateContext = { routePrefix };
     const files = [
       {
+        template: 'google-auth.config.hbs',
+        target: path.join(googlePath, 'google-auth.config.ts'),
+      },
+      {
         template: 'google-auth.module.hbs',
         target: path.join(googlePath, 'google-auth.module.ts'),
       },
