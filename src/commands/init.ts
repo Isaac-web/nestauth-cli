@@ -6,14 +6,23 @@ import fs from 'fs-extra';
 import { Project, QuoteKind, IndentationText, SyntaxKind } from 'ts-morph';
 import { generateFromTemplate } from '../utils/generator';
 import { installPackages } from '../utils/packages';
+import { writeCliConfig } from '../utils/config';
 
 interface InitAnswers {
   providers: string[];
+  routePrefix: string;
   refreshTokens: boolean;
-  setupConfigModule: boolean;
+  setupConfigModule?: boolean;
 }
 
 export async function initCommand(): Promise<void> {
+  const cwd = process.cwd();
+
+  const appModulePath = path.join(cwd, 'src', 'app.module.ts');
+  const configModuleAlreadySetUp =
+    (await fs.pathExists(appModulePath)) &&
+    (await fs.readFile(appModulePath, 'utf-8')).includes('ConfigModule');
+
   const answers = await inquirer.prompt<InitAnswers>([
     {
       type: 'checkbox',
@@ -25,26 +34,36 @@ export async function initCommand(): Promise<void> {
         selected.length > 0 || 'Select at least one sign-in method.',
     },
     {
+      type: 'input',
+      name: 'routePrefix',
+      message: 'Auth route prefix?',
+      default: 'auth',
+    },
+    {
       type: 'confirm',
       name: 'refreshTokens',
       message: 'Enable refresh tokens?',
       default: true,
     },
-    {
-      type: 'confirm',
-      name: 'setupConfigModule',
-      message: 'Set up ConfigModule.forRoot({ isGlobal: true }) in AppModule?',
-      default: true,
-    },
+    ...(!configModuleAlreadySetUp
+      ? [
+          {
+            type: 'confirm' as const,
+            name: 'setupConfigModule',
+            message: 'Set up ConfigModule.forRoot({ isGlobal: true }) in AppModule?',
+            default: true,
+          },
+        ]
+      : []),
   ]);
 
+  const setupConfigModule = configModuleAlreadySetUp ? false : (answers.setupConfigModule ?? false);
   const includeEmail = answers.providers.includes('Email / Password');
   const includeGoogle = answers.providers.includes('Google');
 
   const spinner = ora('Generating auth structure...').start();
 
   try {
-    const cwd = process.cwd();
     const authPath = path.join(cwd, 'src', 'auth');
 
     const baseFiles: Array<{ template: string; target: string }> = [
@@ -122,9 +141,12 @@ export async function initCommand(): Promise<void> {
       ...(includeGoogle ? googleFiles : []),
     ];
 
+    const templateContext = { routePrefix: answers.routePrefix };
     for (const { template, target } of allFiles) {
-      await generateFromTemplate(template, target);
+      await generateFromTemplate(template, target, templateContext);
     }
+
+    await writeCliConfig(cwd, { routePrefix: answers.routePrefix });
 
     const envLines = ['JWT_ACCESS_SECRET=', 'JWT_ACCESS_EXPIRATION=3600'];
     if (answers.refreshTokens) {
@@ -142,7 +164,7 @@ export async function initCommand(): Promise<void> {
     await installPackages(cwd, deps, []);
 
     spinner.text = 'Updating AppModule...';
-    const appModuleUpdated = await registerAuthModule(cwd, answers.setupConfigModule);
+    const appModuleUpdated = await registerAuthModule(cwd, setupConfigModule);
 
     spinner.text = 'Registering submodules...';
     if (includeEmail) {
@@ -166,7 +188,7 @@ export async function initCommand(): Promise<void> {
       console.log('\n' + chalk.yellow('→ Manually import AuthModule into your AppModule.'));
     }
 
-    if (!answers.setupConfigModule) {
+    if (!setupConfigModule && !configModuleAlreadySetUp) {
       console.log(
         '\n' +
           chalk.yellow(

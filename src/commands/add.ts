@@ -3,8 +3,10 @@ import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
 import { Project, QuoteKind, IndentationText, SyntaxKind } from 'ts-morph';
+import inquirer from 'inquirer';
 import { generateFromTemplate } from '../utils/generator';
 import { installPackages } from '../utils/packages';
+import { readCliConfig } from '../utils/config';
 
 const SUPPORTED_PROVIDERS = ['google'];
 
@@ -43,9 +45,17 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
     return;
   }
 
+  const savedConfig = await readCliConfig(cwd);
+  const routePrefix = savedConfig?.routePrefix ?? (
+    await inquirer.prompt<{ routePrefix: string }>([
+      { type: 'input', name: 'routePrefix', message: 'Auth route prefix?', default: 'auth' },
+    ])
+  ).routePrefix;
+
   const spinner = ora('Adding Google login...').start();
 
   try {
+    const templateContext = { routePrefix };
     const files = [
       {
         template: 'google-auth.module.hbs',
@@ -66,7 +76,7 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
     ];
 
     for (const { template, target } of files) {
-      await generateFromTemplate(template, target);
+      await generateFromTemplate(template, target, templateContext);
     }
 
     const envPath = path.join(cwd, '.env.example');
