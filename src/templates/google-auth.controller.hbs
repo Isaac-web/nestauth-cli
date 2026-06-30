@@ -2,6 +2,7 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { GoogleAuthService } from './google-auth.service';
 import { Auth } from '../decorators/auth.decorator';
 import { AuthType } from '../enums/auth-type.enum';
+import { GoogleLoginDto } from './dto/google-login.dto';
 
 @Auth(AuthType.None)
 @Controller('auth')
@@ -9,7 +10,7 @@ export class GoogleAuthController {
   constructor(private readonly googleAuthService: GoogleAuthService) {}
 
   @Post('google')
-  loginWithGoogle(@Body() body: { idToken: string }) {
-    return this.googleAuthService.loginWithGoogle(body.idToken);
+  loginWithGoogle(@Body() dto: GoogleLoginDto) {
+    return this.googleAuthService.loginWithGoogle(dto.idToken);
   }
 }

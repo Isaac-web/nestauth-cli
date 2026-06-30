@@ -2,6 +2,7 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { EmailAuthService } from './email-auth.service';
 import { Auth } from '../decorators/auth.decorator';
 import { AuthType } from '../enums/auth-type.enum';
+import { LoginDto } from './dto/login.dto';
 
 @Auth(AuthType.None)
 @Controller('auth')
@@ -9,7 +10,7 @@ export class EmailAuthController {
   constructor(private readonly emailAuthService: EmailAuthService) {}
 
   @Post('login')
-  login(@Body() body: { email: string; password: string }) {
-    return this.emailAuthService.loginWithEmail(body.email, body.password);
+  login(@Body() dto: LoginDto) {
+    return this.emailAuthService.loginWithEmail(dto.email, dto.password);
   }
 }

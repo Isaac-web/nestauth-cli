@@ -4,10 +4,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { AuthenticationGuard } from './guards/authentication.guard';
 import { JwtGuard } from './guards/jwt.guard';
-import { EmailAuthModule } from './email/email-auth.module';
 
 @Module({
-  imports: [JwtModule.register({}), ConfigModule, EmailAuthModule],
+  imports: [JwtModule.register({}), ConfigModule],
   providers: [
     JwtGuard,
     {

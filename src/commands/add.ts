@@ -59,6 +59,10 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
         template: 'google-auth.controller.hbs',
         target: path.join(googlePath, 'google-auth.controller.ts'),
       },
+      {
+        template: 'google-login.dto.hbs',
+        target: path.join(googlePath, 'dto', 'google-login.dto.ts'),
+      },
     ];
 
     for (const { template, target } of files) {
