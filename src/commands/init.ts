@@ -184,16 +184,31 @@ export async function initCommand(): Promise<void> {
 
     spinner.succeed(chalk.green('Auth structure generated successfully.'));
 
-    console.log('\n' + chalk.bold('Generated files:'));
+    console.log('\n' + chalk.bold('Created:'));
     for (const { target } of allFiles) {
-      console.log('  ' + chalk.cyan(path.relative(cwd, target)));
+      console.log('  ' + chalk.green(path.relative(cwd, target)));
     }
-    console.log('  ' + chalk.cyan('.env.example'));
+    console.log('  ' + chalk.green('.env.example'));
 
-    if (appModuleUpdated) {
-      console.log('  ' + chalk.cyan('src/app.module.ts') + chalk.dim(' (AuthModule registered)'));
-    } else {
+    const modifiedFiles: string[] = [];
+    if (appModuleUpdated) modifiedFiles.push('src/app.module.ts');
+
+    if (modifiedFiles.length > 0) {
+      console.log('\n' + chalk.bold('Modified:'));
+      for (const f of modifiedFiles) {
+        console.log('  ' + chalk.yellow(f));
+      }
+    } else if (!appModuleUpdated) {
       console.log('\n' + chalk.yellow('→ Manually import AuthModule into your AppModule.'));
+    }
+
+    const envVars = ['JWT_ACCESS_SECRET', 'JWT_ACCESS_EXPIRATION'];
+    if (answers.refreshTokens) envVars.push('JWT_REFRESH_SECRET', 'JWT_REFRESH_EXPIRATION');
+    if (includeGoogle) envVars.push('GOOGLE_CLIENT_ID');
+
+    console.log('\n' + chalk.bold('Environment variables to set:'));
+    for (const env of envVars) {
+      console.log('  ' + chalk.magenta(env));
     }
 
     if (!setupConfigModule && !configModuleAlreadySetUp) {
