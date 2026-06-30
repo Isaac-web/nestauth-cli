@@ -122,6 +122,10 @@ export async function initCommand(): Promise<void> {
 
     const googleFiles: Array<{ template: string; target: string }> = [
       {
+        template: 'google-auth.config.hbs',
+        target: path.join(authPath, 'google', 'google-auth.config.ts'),
+      },
+      {
         template: 'google-auth.module.hbs',
         target: path.join(authPath, 'google', 'google-auth.module.ts'),
       },
