@@ -23,17 +23,24 @@ export async function installPackages(
   const addCmd = pm === 'npm' ? 'install' : 'add';
   const devFlag = pm === 'yarn' ? '--dev' : '--save-dev';
 
+  const quietFlags: Record<PackageManager, string[]> = {
+    npm: ['--no-audit', '--no-fund', '--loglevel=error'],
+    yarn: ['--silent'],
+    pnpm: ['--reporter=silent'],
+  };
+  const quiet = quietFlags[pm];
+
   if (deps.length > 0) {
-    await run(pm, [addCmd, ...deps], cwd);
+    await run(pm, [addCmd, ...deps, ...quiet], cwd);
   }
   if (devDeps.length > 0) {
-    await run(pm, [addCmd, devFlag, ...devDeps], cwd);
+    await run(pm, [addCmd, devFlag, ...devDeps, ...quiet], cwd);
   }
 }
 
 function run(cmd: string, args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, stdio: 'inherit' });
+    const child = spawn(cmd, args, { cwd, stdio: ['ignore', 'ignore', 'inherit'] });
     child.on('close', (code) =>
       code === 0 ? resolve() : reject(new Error(`${cmd} exited with code ${code}`)),
     );
