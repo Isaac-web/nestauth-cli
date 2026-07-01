@@ -13,7 +13,7 @@ import { JwtGuard } from './jwt.guard';
 export class AuthenticationGuard implements CanActivate {
   private static readonly defaultAuthType = AuthType.Bearer;
 
-  private readonly authTypeGuardMap: Record<AuthType, CanActivate | CanActivate[]>;
+  private readonly authTypeGuardMap: Partial<Record<AuthType, CanActivate | CanActivate[]>>;
 
   constructor(
     private readonly reflector: Reflector,
@@ -31,7 +31,10 @@ export class AuthenticationGuard implements CanActivate {
       context.getClass(),
     ]) ?? [AuthenticationGuard.defaultAuthType];
 
-    const guards = authTypes.map((type) => this.authTypeGuardMap[type]).flat();
+    const guards = authTypes
+      .map((type) => this.authTypeGuardMap[type])
+      .filter((g): g is CanActivate | CanActivate[] => g !== undefined)
+      .flat();
     let error: Error = new UnauthorizedException();
 
     for (const instance of guards) {

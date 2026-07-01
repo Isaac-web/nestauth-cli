@@ -8,12 +8,15 @@ import { generateFromTemplate } from '../utils/generator';
 function toPascal(s: string): string {
   return s
     .split(/[-_\s]+/)
-    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join('');
 }
 
 function toKebab(s: string): string {
-  return s.toLowerCase().replace(/[\s_]+/g, '-');
+  return s
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-');
 }
 
 export async function guardCommand(name: string): Promise<void> {
@@ -80,10 +83,12 @@ export async function guardCommand(name: string): Promise<void> {
       spinner.succeed(chalk.green(`${pascalName}Guard generated.`));
     }
 
-    console.log('\n' + chalk.bold('Generated / modified files:'));
-    console.log('  ' + chalk.cyan(path.relative(cwd, guardTarget)));
+    console.log('\n' + chalk.bold('Created:'));
+    console.log('  ' + chalk.green(path.relative(cwd, guardTarget)));
+
     if (!alreadyHasMember) {
-      console.log('  ' + chalk.cyan(path.relative(cwd, enumFilePath)));
+      console.log('\n' + chalk.bold('Modified:'));
+      console.log('  ' + chalk.yellow(path.relative(cwd, enumFilePath)));
     }
 
     console.log('\n' + chalk.bold('Next steps:'));

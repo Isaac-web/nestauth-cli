@@ -97,25 +97,18 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
 
     spinner.succeed(chalk.green('Google login added.'));
 
-    console.log('\n' + chalk.bold('Generated files:'));
+    console.log('\n' + chalk.bold('Created:'));
     for (const { target } of files) {
-      console.log('  ' + chalk.cyan(path.relative(cwd, target)));
+      console.log('  ' + chalk.green(path.relative(cwd, target)));
     }
-    console.log('  ' + chalk.cyan('src/auth/auth.module.ts') + chalk.dim(' (GoogleAuthModule registered)'));
 
-    console.log('\n' + chalk.bold('Next steps:'));
-    console.log(
-      '  1. Add ' +
-        chalk.cyan('GOOGLE_CLIENT_ID') +
-        ' to your ' +
-        chalk.cyan('.env') +
-        ' file.',
-    );
-    console.log(
-      '  2. In ' +
-        chalk.cyan('google-auth.service.ts') +
-        ', add your user find-or-create logic after token verification.',
-    );
+    console.log('\n' + chalk.bold('Modified:'));
+    console.log('  ' + chalk.yellow('src/auth/auth.module.ts'));
+
+    console.log('\n' + chalk.bold('Environment variables to set:'));
+    console.log('  ' + chalk.magenta('GOOGLE_CLIENT_ID'));
+
+    console.log('\n' + chalk.dim('→ Add your user find-or-create logic in google-auth.service.ts after token verification.'));
   } catch (err) {
     spinner.fail(chalk.red('Failed to add Google login.'));
     throw err;

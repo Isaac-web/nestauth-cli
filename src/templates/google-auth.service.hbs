@@ -1,6 +1,6 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigType } from '@nestjs/config';
+import type { ConfigType } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { googleAuthConfig } from './google-auth.config';
 import { TokenPayload } from '../interfaces/token-payload.interface';
