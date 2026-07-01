@@ -30,15 +30,18 @@ export class AuthService {
   async loginWithEmail(dto: EmailPasswordDto) {
     return this.emailAuthProvider.validate(dto);
   }
+
   {{/if}}
   {{#if includeGoogle}}
   async loginWithGoogle(dto: GoogleLoginDto) {
     return this.googleAuthProvider.verifyIdToken(dto);
   }
+
   {{/if}}
   {{#if includeRefreshToken}}
   async refreshToken(dto: RefreshTokenDto) {
     return this.refreshTokenProvider.validate(dto);
   }
+
   {{/if}}
 }

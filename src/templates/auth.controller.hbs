@@ -25,17 +25,20 @@ export class AuthController {
   login(@Body() emailPasswordDto: EmailPasswordDto) {
     return this.authService.loginWithEmail(emailPasswordDto);
   }
+
   {{/if}}
   {{#if includeGoogle}}
   @Post('google')
   google(@Body() googleLoginDto: GoogleLoginDto) {
     return this.authService.loginWithGoogle(googleLoginDto);
   }
+
   {{/if}}
   {{#if includeRefreshToken}}
   @Post('refresh')
   refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refreshToken(refreshTokenDto);
   }
+
   {{/if}}
 }
