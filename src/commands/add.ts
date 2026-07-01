@@ -74,10 +74,12 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
       await generateFromTemplate(template, target, {});
     }
 
-    const envPath = path.join(cwd, '.env.example');
+    const envFilePath = savedConfig?.envFilePath ?? '.env';
+    const envPath = path.join(cwd, envFilePath);
     const existing = (await fs.pathExists(envPath)) ? await fs.readFile(envPath, 'utf-8') : '';
-    if (!existing.includes('GOOGLE_CLIENT_ID')) {
-      await fs.appendFile(envPath, '\nGOOGLE_CLIENT_ID=\n');
+    if (!existing.includes('GOOGLE_CLIENT_ID=')) {
+      const prefix = existing.length > 0 && !existing.endsWith('\n\n') ? '\n' : '';
+      await fs.appendFile(envPath, prefix + 'GOOGLE_CLIENT_ID=\n');
     }
 
     spinner.text = 'Installing packages...';
@@ -86,7 +88,7 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
     spinner.text = 'Wiring Google provider...';
     await wireGoogleIntoModule(authPath);
     await wireGoogleIntoService(authPath);
-    await wireGoogleIntoController(authPath, routePrefix);
+    await wireGoogleIntoController(authPath);
 
     spinner.succeed(chalk.green('Google login added.'));
 
@@ -180,6 +182,9 @@ async function wireGoogleIntoService(authPath: string): Promise<void> {
   if (!sf.getImportDeclarations().some(i => i.getModuleSpecifierValue() === './providers/google-auth.provider')) {
     sf.addImportDeclaration({ namedImports: ['GoogleAuthProvider'], moduleSpecifier: './providers/google-auth.provider' });
   }
+  if (!sf.getImportDeclarations().some(i => i.getModuleSpecifierValue() === './dto/google-login.dto')) {
+    sf.addImportDeclaration({ namedImports: ['GoogleLoginDto'], moduleSpecifier: './dto/google-login.dto' });
+  }
 
   const cls = sf.getClass('AuthService');
   if (!cls) return;
@@ -203,10 +208,9 @@ async function wireGoogleIntoService(authPath: string): Promise<void> {
     cls.addMethod({
       isAsync: true,
       name: 'loginWithGoogle',
-      parameters: [{ name: 'idToken', type: 'string' }],
+      parameters: [{ name: 'dto', type: 'GoogleLoginDto' }],
       statements: [
-        'const payload = await this.googleAuthProvider.verifyIdToken(idToken);',
-        'return this.generateTokens(payload);',
+        'return this.googleAuthProvider.verifyIdToken(dto);',
       ],
     });
   }
@@ -214,7 +218,7 @@ async function wireGoogleIntoService(authPath: string): Promise<void> {
   await sf.save();
 }
 
-async function wireGoogleIntoController(authPath: string, routePrefix: string): Promise<void> {
+async function wireGoogleIntoController(authPath: string): Promise<void> {
   const filePath = path.join(authPath, 'auth.controller.ts');
   if (!(await fs.pathExists(filePath))) return;
 
@@ -242,7 +246,7 @@ async function wireGoogleIntoController(authPath: string, routePrefix: string): 
       decorators: [{ name: 'Post', arguments: ["'google'"] }],
       name: 'google',
       parameters: [{ decorators: [{ name: 'Body' }], name: 'googleLoginDto', type: 'GoogleLoginDto' }],
-      statements: ['return this.authService.loginWithGoogle(googleLoginDto.idToken);'],
+      statements: ['return this.authService.loginWithGoogle(googleLoginDto);'],
     });
   }
 

@@ -1,0 +1,22 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import type { ConfigType } from '@nestjs/config';
+import { authConfig } from '../config/auth.config';
+import { TokenPayload } from '../interfaces/token-payload.interface';
+
+@Injectable()
+export class JwtTokenProvider {
+  constructor(
+    private readonly jwtService: JwtService,
+    @Inject(authConfig.KEY) private readonly config: ConfigType<typeof authConfig>,
+  ) {}
+
+  generateTokens(payload: TokenPayload): { accessToken: string; refreshToken: string } {
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.config.refreshTokenSecret,
+      expiresIn: this.config.refreshTokenExpiration,
+    });
+    return { accessToken, refreshToken };
+  }
+}

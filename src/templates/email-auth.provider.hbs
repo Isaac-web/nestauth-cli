@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { TokenPayload } from '../interfaces/token-payload.interface';
+import { JwtTokenProvider } from './jwt-token.provider';
+import { EmailPasswordDto } from '../dto/email-password.dto';
 
 @Injectable()
 export class EmailAuthProvider {
-  async validate(email: string, _password: string): Promise<TokenPayload> {
-    // TODO: validate credentials against your database
+  constructor(private readonly jwtTokenProvider: JwtTokenProvider) {}
+
+  async validate(dto: EmailPasswordDto) {
+    // TODO: Look up the user in your database and verify their password
     // Example:
-    //   const user = await this.usersService.findByEmail(email);
-    //   if (!user || !(await bcrypt.compare(_password, user.passwordHash))) {
-    //     throw new UnauthorizedException();
+    //   const user = await this.usersService.findByEmail(dto.email);
+    //   if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    //     throw new UnauthorizedException('Invalid credentials');
     //   }
-    //   return { sub: user.id, email: user.email };
-    return { sub: 'replace-with-user-id', email };
+    //   return this.jwtTokenProvider.generateTokens({ sub: user.id, email: user.email });
+    return this.jwtTokenProvider.generateTokens({ sub: 'replace-with-user-id', email: dto.email });
   }
 }

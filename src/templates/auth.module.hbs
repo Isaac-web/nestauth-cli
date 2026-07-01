@@ -15,6 +15,7 @@ import { RefreshTokenProvider } from './providers/refresh-token.provider';
 {{/if}}
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { JwtTokenProvider } from './providers/jwt-token.provider';
 import { AuthenticationGuard } from './guards/authentication.guard';
 import { JwtGuard } from './guards/jwt.guard';
 
@@ -36,6 +37,7 @@ import { JwtGuard } from './guards/jwt.guard';
   controllers: [AuthController],
   providers: [
     AuthService,
+    JwtTokenProvider,
     JwtGuard,
     {
       provide: APP_GUARD,

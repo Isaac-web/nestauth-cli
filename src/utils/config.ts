@@ -3,6 +3,7 @@ import path from 'path';
 
 export interface CliConfig {
   routePrefix: string;
+  envFilePath?: string;
 }
 
 const CONFIG_FILE = '.nest-auth.json';

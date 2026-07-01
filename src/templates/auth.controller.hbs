@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post{{#if useRouteLevelPipes}}, UsePipes, ValidationPipe{{/if}} } from '@nestjs/common';
 {{#if includeEmail}}
 import { EmailPasswordDto } from './dto/email-password.dto';
 {{/if}}
@@ -12,6 +12,9 @@ import { Auth } from './decorators/auth.decorator';
 import { AuthType } from './enums/auth-type.enum';
 import { AuthService } from './auth.service';
 
+{{#if useRouteLevelPipes}}
+@UsePipes(new ValidationPipe({ whitelist: true }))
+{{/if}}
 @Auth(AuthType.None)
 @Controller('{{routePrefix}}')
 export class AuthController {
@@ -20,19 +23,19 @@ export class AuthController {
   {{#if includeEmail}}
   @Post('login')
   login(@Body() emailPasswordDto: EmailPasswordDto) {
-    return this.authService.loginWithEmail(emailPasswordDto.email, emailPasswordDto.password);
+    return this.authService.loginWithEmail(emailPasswordDto);
   }
   {{/if}}
   {{#if includeGoogle}}
   @Post('google')
   google(@Body() googleLoginDto: GoogleLoginDto) {
-    return this.authService.loginWithGoogle(googleLoginDto.idToken);
+    return this.authService.loginWithGoogle(googleLoginDto);
   }
   {{/if}}
   {{#if includeRefreshToken}}
   @Post('refresh')
   refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshToken(refreshTokenDto.refreshToken);
+    return this.authService.refreshToken(refreshTokenDto);
   }
   {{/if}}
 }

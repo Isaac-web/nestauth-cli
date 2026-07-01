@@ -13,6 +13,10 @@ interface InitAnswers {
   routePrefix: string;
   refreshTokens: boolean;
   setupConfigModule?: boolean;
+  generateEnvFile?: boolean;
+  envFilePath?: string;
+  currentUserDecorator?: boolean;
+  setupGlobalPipes?: boolean;
 }
 
 export async function initCommand(): Promise<void> {
@@ -22,6 +26,11 @@ export async function initCommand(): Promise<void> {
   const configModuleAlreadySetUp =
     (await fs.pathExists(appModulePath)) &&
     (await fs.readFile(appModulePath, 'utf-8')).includes('ConfigModule');
+
+  const mainTsPath = path.join(cwd, 'src', 'main.ts');
+  const globalPipesAlreadySetUp =
+    (await fs.pathExists(mainTsPath)) &&
+    (await fs.readFile(mainTsPath, 'utf-8')).includes('useGlobalPipes');
 
   const answers = await inquirer.prompt<InitAnswers>([
     {
@@ -55,18 +64,58 @@ export async function initCommand(): Promise<void> {
           },
         ]
       : []),
+    {
+      type: 'confirm',
+      name: 'generateEnvFile',
+      message: 'Generate a .env file for secrets?',
+      default: true,
+    },
+    {
+      type: 'input',
+      name: 'envFilePath',
+      message: 'Path for env file?',
+      default: '.env',
+      when: (a) => (a as InitAnswers).generateEnvFile !== false,
+    },
+    {
+      type: 'confirm',
+      name: 'currentUserDecorator',
+      message: 'Generate a @CurrentUser() decorator?',
+      default: true,
+    },
+    ...(!globalPipesAlreadySetUp
+      ? [
+          {
+            type: 'confirm' as const,
+            name: 'setupGlobalPipes',
+            message: 'Enable ValidationPipe globally in main.ts?',
+            default: true,
+          },
+        ]
+      : []),
   ]);
 
   const setupConfigModule = configModuleAlreadySetUp ? false : (answers.setupConfigModule ?? false);
   const includeEmail = answers.providers.includes('Email / Password');
   const includeGoogle = answers.providers.includes('Google');
   const includeRefreshToken = answers.refreshTokens;
+  const generateEnvFile = answers.generateEnvFile !== false;
+  const envFilePath = answers.envFilePath ?? '.env';
+  const includeCurrentUserDecorator = answers.currentUserDecorator !== false;
+  const setupGlobalPipes = globalPipesAlreadySetUp ? false : (answers.setupGlobalPipes ?? false);
+  const useRouteLevelPipes = !globalPipesAlreadySetUp && !setupGlobalPipes;
 
   const spinner = ora('Generating auth structure...').start();
 
   try {
     const authPath = path.join(cwd, 'src', 'auth');
-    const templateContext = { routePrefix: answers.routePrefix, includeEmail, includeGoogle, includeRefreshToken };
+    const templateContext = {
+      routePrefix: answers.routePrefix,
+      includeEmail,
+      includeGoogle,
+      includeRefreshToken,
+      useRouteLevelPipes,
+    };
 
     const baseFiles: Array<{ template: string; target: string }> = [
       {
@@ -81,10 +130,14 @@ export async function initCommand(): Promise<void> {
         template: 'auth.decorator.hbs',
         target: path.join(authPath, 'decorators', 'auth.decorator.ts'),
       },
-      {
-        template: 'current-user.decorator.hbs',
-        target: path.join(authPath, 'decorators', 'current-user.decorator.ts'),
-      },
+      ...(includeCurrentUserDecorator
+        ? [
+            {
+              template: 'current-user.decorator.hbs',
+              target: path.join(authPath, 'decorators', 'current-user.decorator.ts'),
+            },
+          ]
+        : []),
       {
         template: 'jwt.guard.hbs',
         target: path.join(authPath, 'guards', 'jwt.guard.ts'),
@@ -108,6 +161,10 @@ export async function initCommand(): Promise<void> {
       {
         template: 'auth.service.hbs',
         target: path.join(authPath, 'auth.service.ts'),
+      },
+      {
+        template: 'jwt-token.provider.hbs',
+        target: path.join(authPath, 'providers', 'jwt-token.provider.ts'),
       },
     ];
 
@@ -159,17 +216,31 @@ export async function initCommand(): Promise<void> {
       await generateFromTemplate(template, target, templateContext);
     }
 
-    await writeCliConfig(cwd, { routePrefix: answers.routePrefix });
+    await writeCliConfig(cwd, { routePrefix: answers.routePrefix, envFilePath });
 
-    const envLines = ['JWT_ACCESS_SECRET=', 'JWT_ACCESS_EXPIRATION=3600'];
-    if (answers.refreshTokens) {
-      envLines.push('JWT_REFRESH_SECRET=');
-      envLines.push('JWT_REFRESH_EXPIRATION=604800');
+    if (generateEnvFile) {
+      const envLines = ['JWT_ACCESS_SECRET=', 'JWT_ACCESS_EXPIRATION=3600'];
+      if (includeRefreshToken) {
+        envLines.push('JWT_REFRESH_SECRET=');
+        envLines.push('JWT_REFRESH_EXPIRATION=604800');
+      }
+      if (includeGoogle) {
+        envLines.push('GOOGLE_CLIENT_ID=');
+      }
+
+      const envFsPath = path.join(cwd, envFilePath);
+      const existing = (await fs.pathExists(envFsPath))
+        ? await fs.readFile(envFsPath, 'utf-8')
+        : '';
+      const newLines = envLines.filter((line) => {
+        const key = line.split('=')[0];
+        return key && !existing.includes(key + '=');
+      });
+      if (newLines.length > 0) {
+        const prefix = existing.length > 0 && !existing.endsWith('\n\n') ? '\n' : '';
+        await fs.appendFile(envFsPath, prefix + newLines.join('\n') + '\n');
+      }
     }
-    if (includeGoogle) {
-      envLines.push('GOOGLE_CLIENT_ID=');
-    }
-    await fs.outputFile(path.join(cwd, '.env.example'), envLines.join('\n') + '\n');
 
     spinner.text = 'Installing packages...';
     const deps = ['@nestjs/jwt', '@nestjs/config', 'class-validator', 'class-transformer'];
@@ -179,16 +250,25 @@ export async function initCommand(): Promise<void> {
     spinner.text = 'Updating AppModule...';
     const appModuleUpdated = await registerAuthModule(cwd, setupConfigModule);
 
+    let mainTsUpdated = false;
+    if (setupGlobalPipes) {
+      spinner.text = 'Setting up global validation pipes...';
+      mainTsUpdated = await setupMainTsGlobalPipes(cwd);
+    }
+
     spinner.succeed(chalk.green('Auth structure generated successfully.'));
 
     console.log('\n' + chalk.bold('Created:'));
     for (const { target } of allFiles) {
       console.log('  ' + chalk.green(path.relative(cwd, target)));
     }
-    console.log('  ' + chalk.green('.env.example'));
+    if (generateEnvFile) {
+      console.log('  ' + chalk.green(envFilePath));
+    }
 
     const modifiedFiles: string[] = [];
     if (appModuleUpdated) modifiedFiles.push('src/app.module.ts');
+    if (mainTsUpdated) modifiedFiles.push('src/main.ts');
 
     if (modifiedFiles.length > 0) {
       console.log('\n' + chalk.bold('Modified:'));
@@ -200,7 +280,7 @@ export async function initCommand(): Promise<void> {
     }
 
     const envVars = ['JWT_ACCESS_SECRET', 'JWT_ACCESS_EXPIRATION'];
-    if (answers.refreshTokens) envVars.push('JWT_REFRESH_SECRET', 'JWT_REFRESH_EXPIRATION');
+    if (includeRefreshToken) envVars.push('JWT_REFRESH_SECRET', 'JWT_REFRESH_EXPIRATION');
     if (includeGoogle) envVars.push('GOOGLE_CLIENT_ID');
 
     console.log('\n' + chalk.bold('Environment variables to set:'));
@@ -216,19 +296,60 @@ export async function initCommand(): Promise<void> {
           ),
       );
     }
-
-    console.log(
-      '\n' +
-        chalk.yellow('→ Enable validation in your main.ts:') +
-        '\n  ' +
-        chalk.cyan('app.useGlobalPipes(new ValidationPipe({ whitelist: true }));'),
-    );
-
-    console.log('\n' + chalk.dim('Next: fill in your secrets in .env (see .env.example).'));
   } catch (err) {
     spinner.fail(chalk.red('Failed to generate auth structure.'));
     throw err;
   }
+}
+
+async function setupMainTsGlobalPipes(cwd: string): Promise<boolean> {
+  const mainTsPath = path.join(cwd, 'src', 'main.ts');
+  if (!(await fs.pathExists(mainTsPath))) return false;
+
+  const project = new Project({
+    skipAddingFilesFromTsConfig: true,
+    manipulationSettings: {
+      indentationText: IndentationText.TwoSpaces,
+      quoteKind: QuoteKind.Single,
+    },
+  });
+
+  const sf = project.addSourceFileAtPath(mainTsPath);
+
+  const commonImport = sf.getImportDeclaration('@nestjs/common');
+  if (commonImport) {
+    const named = commonImport.getNamedImports().map((n) => n.getName());
+    if (!named.includes('ValidationPipe')) {
+      commonImport.addNamedImport('ValidationPipe');
+    }
+  } else {
+    sf.addImportDeclaration({
+      namedImports: ['ValidationPipe'],
+      moduleSpecifier: '@nestjs/common',
+    });
+  }
+
+  let inserted = false;
+  for (const fn of sf.getFunctions()) {
+    const body = fn.getBody();
+    if (!body || body.getKind() !== SyntaxKind.Block) continue;
+    const block = body.asKindOrThrow(SyntaxKind.Block);
+    const stmts = block.getStatements();
+    for (let i = 0; i < stmts.length; i++) {
+      if (stmts[i].getText().includes('app.listen')) {
+        block.insertStatements(
+          i,
+          'app.useGlobalPipes(new ValidationPipe({ whitelist: true }));',
+        );
+        inserted = true;
+        break;
+      }
+    }
+    if (inserted) break;
+  }
+
+  await sf.save();
+  return inserted;
 }
 
 async function registerAuthModule(cwd: string, setupConfigModule: boolean): Promise<boolean> {
