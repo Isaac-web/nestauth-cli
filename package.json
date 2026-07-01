@@ -4,7 +4,7 @@
   "description": "NestJS authentication generator CLI",
   "main": "dist/index.js",
   "bin": {
-    "nest-auth": "dist/index.js"
+    "nestauth": "dist/index.js"
   },
   "scripts": {
     "build": "tsc && rm -rf dist/templates && cp -r src/templates dist/",

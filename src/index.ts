@@ -8,7 +8,7 @@ import { guardCommand } from './commands/guard';
 const program = new Command();
 
 program
-  .name('nest-auth')
+  .name('nestauth')
   .description('NestJS authentication generator CLI')
   .version('0.1.0');
 
