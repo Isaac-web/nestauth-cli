@@ -2,7 +2,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
-import { Project, QuoteKind, IndentationText, SyntaxKind } from 'ts-morph';
+import { Project, QuoteKind, IndentationText, SyntaxKind, Scope } from 'ts-morph';
 import inquirer from 'inquirer';
 import { generateFromTemplate } from '../utils/generator';
 import { installPackages } from '../utils/packages';
@@ -27,7 +27,7 @@ export async function addCommand(provider: string): Promise<void> {
 
   if (!(await fs.pathExists(authPath))) {
     console.error(
-      chalk.red('Auth structure not found.') + ' Run ' + chalk.cyan('nest-auth init') + ' first.',
+      chalk.red('Auth structure not found.') + ' Run ' + chalk.cyan('nestauth init') + ' first.',
     );
     process.exit(1);
   }
@@ -38,9 +38,9 @@ export async function addCommand(provider: string): Promise<void> {
 }
 
 async function addGoogle(cwd: string, authPath: string): Promise<void> {
-  const googlePath = path.join(authPath, 'google');
+  const providerFile = path.join(authPath, 'providers', 'google-auth.provider.ts');
 
-  if (await fs.pathExists(googlePath)) {
+  if (await fs.pathExists(providerFile)) {
     console.log(chalk.yellow('Google login has already been added.'));
     return;
   }
@@ -55,32 +55,23 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
   const spinner = ora('Adding Google login...').start();
 
   try {
-    const templateContext = { routePrefix };
     const files = [
       {
         template: 'google-auth.config.hbs',
-        target: path.join(googlePath, 'google-auth.config.ts'),
+        target: path.join(authPath, 'config', 'google-auth.config.ts'),
       },
       {
-        template: 'google-auth.module.hbs',
-        target: path.join(googlePath, 'google-auth.module.ts'),
-      },
-      {
-        template: 'google-auth.service.hbs',
-        target: path.join(googlePath, 'google-auth.service.ts'),
-      },
-      {
-        template: 'google-auth.controller.hbs',
-        target: path.join(googlePath, 'google-auth.controller.ts'),
+        template: 'google-auth.provider.hbs',
+        target: path.join(authPath, 'providers', 'google-auth.provider.ts'),
       },
       {
         template: 'google-login.dto.hbs',
-        target: path.join(googlePath, 'dto', 'google-login.dto.ts'),
+        target: path.join(authPath, 'dto', 'google-login.dto.ts'),
       },
     ];
 
     for (const { template, target } of files) {
-      await generateFromTemplate(template, target, templateContext);
+      await generateFromTemplate(template, target, {});
     }
 
     const envPath = path.join(cwd, '.env.example');
@@ -92,8 +83,10 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
     spinner.text = 'Installing packages...';
     await installPackages(cwd, ['google-auth-library'], []);
 
-    spinner.text = 'Registering GoogleAuthModule...';
-    await registerGoogleModule(authPath);
+    spinner.text = 'Wiring Google provider...';
+    await wireGoogleIntoModule(authPath);
+    await wireGoogleIntoService(authPath);
+    await wireGoogleIntoController(authPath, routePrefix);
 
     spinner.succeed(chalk.green('Google login added.'));
 
@@ -104,64 +97,154 @@ async function addGoogle(cwd: string, authPath: string): Promise<void> {
 
     console.log('\n' + chalk.bold('Modified:'));
     console.log('  ' + chalk.yellow('src/auth/auth.module.ts'));
+    console.log('  ' + chalk.yellow('src/auth/auth.service.ts'));
+    console.log('  ' + chalk.yellow('src/auth/auth.controller.ts'));
 
     console.log('\n' + chalk.bold('Environment variables to set:'));
     console.log('  ' + chalk.magenta('GOOGLE_CLIENT_ID'));
 
-    console.log('\n' + chalk.dim('→ Add your user find-or-create logic in google-auth.service.ts after token verification.'));
+    console.log('\n' + chalk.dim('→ Add your user find-or-create logic in google-auth.provider.ts after token verification.'));
   } catch (err) {
     spinner.fail(chalk.red('Failed to add Google login.'));
     throw err;
   }
 }
 
-async function registerGoogleModule(authPath: string): Promise<void> {
-  const authModulePath = path.join(authPath, 'auth.module.ts');
-  if (!(await fs.pathExists(authModulePath))) return;
-
-  const project = new Project({
+function makeProject() {
+  return new Project({
     skipAddingFilesFromTsConfig: true,
     manipulationSettings: {
       indentationText: IndentationText.TwoSpaces,
       quoteKind: QuoteKind.Single,
     },
   });
+}
 
-  const sourceFile = project.addSourceFileAtPath(authModulePath);
+async function wireGoogleIntoModule(authPath: string): Promise<void> {
+  const filePath = path.join(authPath, 'auth.module.ts');
+  if (!(await fs.pathExists(filePath))) return;
 
-  const hasImportDecl = sourceFile
-    .getImportDeclarations()
-    .some((i) => i.getModuleSpecifierValue().includes('google/google-auth.module'));
+  const project = makeProject();
+  const sf = project.addSourceFileAtPath(filePath);
 
-  if (!hasImportDecl) {
-    sourceFile.addImportDeclaration({
-      namedImports: ['GoogleAuthModule'],
-      moduleSpecifier: './google/google-auth.module',
-    });
+  if (!sf.getImportDeclarations().some(i => i.getModuleSpecifierValue() === './config/google-auth.config')) {
+    sf.addImportDeclaration({ namedImports: ['googleAuthConfig'], moduleSpecifier: './config/google-auth.config' });
+  }
+  if (!sf.getImportDeclarations().some(i => i.getModuleSpecifierValue() === './providers/google-auth.provider')) {
+    sf.addImportDeclaration({ namedImports: ['GoogleAuthProvider'], moduleSpecifier: './providers/google-auth.provider' });
   }
 
-  for (const cls of sourceFile.getClasses()) {
+  for (const cls of sf.getClasses()) {
     const decorator = cls.getDecorator('Module');
     if (!decorator) continue;
 
-    const arg = decorator.getArguments()[0];
-    if (!arg) continue;
+    const obj = decorator.getArguments()[0].asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
 
-    const objLiteral = arg.asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
-    const importsProp = objLiteral.getProperty('imports');
-    if (!importsProp) continue;
+    // Add ConfigModule.forFeature(googleAuthConfig) to imports
+    const importsProp = obj.getProperty('imports');
+    if (importsProp) {
+      const arr = importsProp
+        .asKindOrThrow(SyntaxKind.PropertyAssignment)
+        .getInitializerIfKindOrThrow(SyntaxKind.ArrayLiteralExpression);
+      const elements = arr.getElements().map(e => e.getText().trim());
+      if (!elements.some(e => e.includes('googleAuthConfig'))) {
+        arr.insertElement(0, 'ConfigModule.forFeature(googleAuthConfig)');
+      }
+    }
 
-    const arrayLiteral = importsProp
-      .asKindOrThrow(SyntaxKind.PropertyAssignment)
-      .getInitializerIfKindOrThrow(SyntaxKind.ArrayLiteralExpression);
-
-    const elements = arrayLiteral.getElements().map((el) => el.getText().trim());
-    if (!elements.some((el) => el === 'GoogleAuthModule')) {
-      arrayLiteral.addElement('GoogleAuthModule');
+    // Add GoogleAuthProvider to providers
+    const providersProp = obj.getProperty('providers');
+    if (providersProp) {
+      const arr = providersProp
+        .asKindOrThrow(SyntaxKind.PropertyAssignment)
+        .getInitializerIfKindOrThrow(SyntaxKind.ArrayLiteralExpression);
+      const elements = arr.getElements().map(e => e.getText().trim());
+      if (!elements.includes('GoogleAuthProvider')) {
+        arr.addElement('GoogleAuthProvider');
+      }
     }
 
     break;
   }
 
-  await sourceFile.save();
+  await sf.save();
+}
+
+async function wireGoogleIntoService(authPath: string): Promise<void> {
+  const filePath = path.join(authPath, 'auth.service.ts');
+  if (!(await fs.pathExists(filePath))) return;
+
+  const project = makeProject();
+  const sf = project.addSourceFileAtPath(filePath);
+
+  if (!sf.getImportDeclarations().some(i => i.getModuleSpecifierValue() === './providers/google-auth.provider')) {
+    sf.addImportDeclaration({ namedImports: ['GoogleAuthProvider'], moduleSpecifier: './providers/google-auth.provider' });
+  }
+
+  const cls = sf.getClass('AuthService');
+  if (!cls) return;
+
+  const ctor = cls.getConstructors()[0];
+  if (ctor) {
+    const params = ctor.getParameters().map(p => p.getName());
+    if (!params.includes('googleAuthProvider')) {
+      ctor.addParameter({
+        decorators: [],
+        name: 'googleAuthProvider',
+        type: 'GoogleAuthProvider',
+        isReadonly: true,
+        scope: Scope.Private,
+      });
+    }
+  }
+
+  const hasMethod = cls.getMethods().some(m => m.getName() === 'loginWithGoogle');
+  if (!hasMethod) {
+    cls.addMethod({
+      isAsync: true,
+      name: 'loginWithGoogle',
+      parameters: [{ name: 'idToken', type: 'string' }],
+      statements: [
+        'const payload = await this.googleAuthProvider.verifyIdToken(idToken);',
+        'return this.generateTokens(payload);',
+      ],
+    });
+  }
+
+  await sf.save();
+}
+
+async function wireGoogleIntoController(authPath: string, routePrefix: string): Promise<void> {
+  const filePath = path.join(authPath, 'auth.controller.ts');
+  if (!(await fs.pathExists(filePath))) return;
+
+  const project = makeProject();
+  const sf = project.addSourceFileAtPath(filePath);
+
+  if (!sf.getImportDeclarations().some(i => i.getModuleSpecifierValue() === './dto/google-login.dto')) {
+    sf.addImportDeclaration({ namedImports: ['GoogleLoginDto'], moduleSpecifier: './dto/google-login.dto' });
+  }
+
+  // Ensure Post is imported
+  const nestImport = sf.getImportDeclaration('@nestjs/common');
+  if (nestImport) {
+    const named = nestImport.getNamedImports().map(n => n.getName());
+    if (!named.includes('Post')) nestImport.addNamedImport('Post');
+    if (!named.includes('Body')) nestImport.addNamedImport('Body');
+  }
+
+  const cls = sf.getClass('AuthController');
+  if (!cls) return;
+
+  const hasMethod = cls.getMethods().some(m => m.getName() === 'google');
+  if (!hasMethod) {
+    cls.addMethod({
+      decorators: [{ name: 'Post', arguments: ["'google'"] }],
+      name: 'google',
+      parameters: [{ decorators: [{ name: 'Body' }], name: 'googleLoginDto', type: 'GoogleLoginDto' }],
+      statements: ['return this.authService.loginWithGoogle(googleLoginDto.idToken);'],
+    });
+  }
+
+  await sf.save();
 }

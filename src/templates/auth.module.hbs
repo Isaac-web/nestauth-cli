@@ -1,19 +1,55 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigType } from '@nestjs/config';
 import { authConfig } from './config/auth.config';
+{{#if includeEmail}}
+import { EmailAuthProvider } from './providers/email-auth.provider';
+{{/if}}
+{{#if includeGoogle}}
+import { googleAuthConfig } from './config/google-auth.config';
+import { GoogleAuthProvider } from './providers/google-auth.provider';
+{{/if}}
+{{#if includeRefreshToken}}
+import { RefreshTokenProvider } from './providers/refresh-token.provider';
+{{/if}}
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
 import { AuthenticationGuard } from './guards/authentication.guard';
 import { JwtGuard } from './guards/jwt.guard';
 
 @Module({
-  imports: [JwtModule.register({}), ConfigModule.forFeature(authConfig)],
+  imports: [
+    ConfigModule.forFeature(authConfig),
+    {{#if includeGoogle}}
+    ConfigModule.forFeature(googleAuthConfig),
+    {{/if}}
+    JwtModule.registerAsync({
+      imports: [ConfigModule.forFeature(authConfig)],
+      useFactory: (config: ConfigType<typeof authConfig>) => ({
+        secret: config.accessTokenSecret,
+        signOptions: { expiresIn: config.accessTokenExpiration },
+      }),
+      inject: [authConfig.KEY],
+    }),
+  ],
+  controllers: [AuthController],
   providers: [
+    AuthService,
     JwtGuard,
     {
       provide: APP_GUARD,
       useClass: AuthenticationGuard,
     },
+    {{#if includeEmail}}
+    EmailAuthProvider,
+    {{/if}}
+    {{#if includeGoogle}}
+    GoogleAuthProvider,
+    {{/if}}
+    {{#if includeRefreshToken}}
+    RefreshTokenProvider,
+    {{/if}}
   ],
 })
 export class AuthModule {}

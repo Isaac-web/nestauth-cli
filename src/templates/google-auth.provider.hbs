@@ -1,0 +1,31 @@
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
+import { OAuth2Client } from 'google-auth-library';
+import { googleAuthConfig } from '../config/google-auth.config';
+import { TokenPayload } from '../interfaces/token-payload.interface';
+
+@Injectable()
+export class GoogleAuthProvider {
+  private readonly client: OAuth2Client;
+
+  constructor(
+    @Inject(googleAuthConfig.KEY) private readonly googleConfig: ConfigType<typeof googleAuthConfig>,
+  ) {
+    this.client = new OAuth2Client(this.googleConfig.clientId);
+  }
+
+  async verifyIdToken(idToken: string): Promise<TokenPayload> {
+    const ticket = await this.client.verifyIdToken({
+      idToken,
+      audience: this.googleConfig.clientId,
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.email) throw new UnauthorizedException('Invalid Google token');
+
+    // TODO: find or create a user in your database using payload.email
+    // Example:
+    //   const user = await this.usersService.findOrCreate({ email: payload.email });
+
+    return { sub: payload.sub, email: payload.email };
+  }
+}

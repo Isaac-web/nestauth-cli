@@ -3,4 +3,6 @@ import { registerAs } from '@nestjs/config';
 export const authConfig = registerAs('auth', () => ({
   accessTokenSecret: process.env.JWT_ACCESS_SECRET ?? '',
   accessTokenExpiration: parseInt(process.env.JWT_ACCESS_EXPIRATION ?? '3600', 10),
+  refreshTokenSecret: process.env.JWT_REFRESH_SECRET ?? '',
+  refreshTokenExpiration: parseInt(process.env.JWT_REFRESH_EXPIRATION ?? '604800', 10),
 }));

@@ -1,0 +1,16 @@
+import { Injectable } from '@nestjs/common';
+import { TokenPayload } from '../interfaces/token-payload.interface';
+
+@Injectable()
+export class EmailAuthProvider {
+  async validate(email: string, _password: string): Promise<TokenPayload> {
+    // TODO: validate credentials against your database
+    // Example:
+    //   const user = await this.usersService.findByEmail(email);
+    //   if (!user || !(await bcrypt.compare(_password, user.passwordHash))) {
+    //     throw new UnauthorizedException();
+    //   }
+    //   return { sub: user.id, email: user.email };
+    return { sub: 'replace-with-user-id', email };
+  }
+}

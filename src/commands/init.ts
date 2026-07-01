@@ -60,11 +60,13 @@ export async function initCommand(): Promise<void> {
   const setupConfigModule = configModuleAlreadySetUp ? false : (answers.setupConfigModule ?? false);
   const includeEmail = answers.providers.includes('Email / Password');
   const includeGoogle = answers.providers.includes('Google');
+  const includeRefreshToken = answers.refreshTokens;
 
   const spinner = ora('Generating auth structure...').start();
 
   try {
     const authPath = path.join(cwd, 'src', 'auth');
+    const templateContext = { routePrefix: answers.routePrefix, includeEmail, includeGoogle, includeRefreshToken };
 
     const baseFiles: Array<{ template: string; target: string }> = [
       {
@@ -99,47 +101,50 @@ export async function initCommand(): Promise<void> {
         template: 'auth.module.hbs',
         target: path.join(authPath, 'auth.module.ts'),
       },
+      {
+        template: 'auth.controller.hbs',
+        target: path.join(authPath, 'auth.controller.ts'),
+      },
+      {
+        template: 'auth.service.hbs',
+        target: path.join(authPath, 'auth.service.ts'),
+      },
     ];
 
     const emailFiles: Array<{ template: string; target: string }> = [
       {
-        template: 'email-auth.module.hbs',
-        target: path.join(authPath, 'email', 'email-auth.module.ts'),
+        template: 'email-auth.provider.hbs',
+        target: path.join(authPath, 'providers', 'email-auth.provider.ts'),
       },
       {
-        template: 'email-auth.service.hbs',
-        target: path.join(authPath, 'email', 'email-auth.service.ts'),
-      },
-      {
-        template: 'email-auth.controller.hbs',
-        target: path.join(authPath, 'email', 'email-auth.controller.ts'),
-      },
-      {
-        template: 'login.dto.hbs',
-        target: path.join(authPath, 'email', 'dto', 'login.dto.ts'),
+        template: 'email-password.dto.hbs',
+        target: path.join(authPath, 'dto', 'email-password.dto.ts'),
       },
     ];
 
     const googleFiles: Array<{ template: string; target: string }> = [
       {
         template: 'google-auth.config.hbs',
-        target: path.join(authPath, 'google', 'google-auth.config.ts'),
+        target: path.join(authPath, 'config', 'google-auth.config.ts'),
       },
       {
-        template: 'google-auth.module.hbs',
-        target: path.join(authPath, 'google', 'google-auth.module.ts'),
-      },
-      {
-        template: 'google-auth.service.hbs',
-        target: path.join(authPath, 'google', 'google-auth.service.ts'),
-      },
-      {
-        template: 'google-auth.controller.hbs',
-        target: path.join(authPath, 'google', 'google-auth.controller.ts'),
+        template: 'google-auth.provider.hbs',
+        target: path.join(authPath, 'providers', 'google-auth.provider.ts'),
       },
       {
         template: 'google-login.dto.hbs',
-        target: path.join(authPath, 'google', 'dto', 'google-login.dto.ts'),
+        target: path.join(authPath, 'dto', 'google-login.dto.ts'),
+      },
+    ];
+
+    const refreshTokenFiles: Array<{ template: string; target: string }> = [
+      {
+        template: 'refresh-token.provider.hbs',
+        target: path.join(authPath, 'providers', 'refresh-token.provider.ts'),
+      },
+      {
+        template: 'refresh-token.dto.hbs',
+        target: path.join(authPath, 'dto', 'refresh-token.dto.ts'),
       },
     ];
 
@@ -147,9 +152,9 @@ export async function initCommand(): Promise<void> {
       ...baseFiles,
       ...(includeEmail ? emailFiles : []),
       ...(includeGoogle ? googleFiles : []),
+      ...(includeRefreshToken ? refreshTokenFiles : []),
     ];
 
-    const templateContext = { routePrefix: answers.routePrefix };
     for (const { template, target } of allFiles) {
       await generateFromTemplate(template, target, templateContext);
     }
@@ -173,14 +178,6 @@ export async function initCommand(): Promise<void> {
 
     spinner.text = 'Updating AppModule...';
     const appModuleUpdated = await registerAuthModule(cwd, setupConfigModule);
-
-    spinner.text = 'Registering submodules...';
-    if (includeEmail) {
-      await registerSubmoduleInAuthModule(authPath, 'EmailAuthModule', './email/email-auth.module');
-    }
-    if (includeGoogle) {
-      await registerSubmoduleInAuthModule(authPath, 'GoogleAuthModule', './google/google-auth.module');
-    }
 
     spinner.succeed(chalk.green('Auth structure generated successfully.'));
 
@@ -319,56 +316,4 @@ async function registerAuthModule(cwd: string, setupConfigModule: boolean): Prom
     return true;
   }
   return false;
-}
-
-async function registerSubmoduleInAuthModule(
-  authPath: string,
-  moduleName: string,
-  moduleSpecifier: string,
-): Promise<void> {
-  const authModulePath = path.join(authPath, 'auth.module.ts');
-  if (!(await fs.pathExists(authModulePath))) return;
-
-  const project = new Project({
-    skipAddingFilesFromTsConfig: true,
-    manipulationSettings: {
-      indentationText: IndentationText.TwoSpaces,
-      quoteKind: QuoteKind.Single,
-    },
-  });
-
-  const sourceFile = project.addSourceFileAtPath(authModulePath);
-
-  const hasImportDecl = sourceFile
-    .getImportDeclarations()
-    .some((i) => i.getModuleSpecifierValue() === moduleSpecifier);
-
-  if (!hasImportDecl) {
-    sourceFile.addImportDeclaration({ namedImports: [moduleName], moduleSpecifier });
-  }
-
-  for (const cls of sourceFile.getClasses()) {
-    const decorator = cls.getDecorator('Module');
-    if (!decorator) continue;
-
-    const arg = decorator.getArguments()[0];
-    if (!arg) continue;
-
-    const objLiteral = arg.asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
-    const importsProp = objLiteral.getProperty('imports');
-    if (!importsProp) continue;
-
-    const arrayLiteral = importsProp
-      .asKindOrThrow(SyntaxKind.PropertyAssignment)
-      .getInitializerIfKindOrThrow(SyntaxKind.ArrayLiteralExpression);
-
-    const elements = arrayLiteral.getElements().map((el) => el.getText().trim());
-    if (!elements.some((el) => el === moduleName)) {
-      arrayLiteral.addElement(moduleName);
-    }
-
-    break;
-  }
-
-  await sourceFile.save();
 }

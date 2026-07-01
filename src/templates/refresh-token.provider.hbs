@@ -1,0 +1,24 @@
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import type { ConfigType } from '@nestjs/config';
+import { authConfig } from '../config/auth.config';
+import { TokenPayload } from '../interfaces/token-payload.interface';
+
+@Injectable()
+export class RefreshTokenProvider {
+  constructor(
+    private readonly jwtService: JwtService,
+    @Inject(authConfig.KEY) private readonly config: ConfigType<typeof authConfig>,
+  ) {}
+
+  async validate(refreshToken: string): Promise<TokenPayload> {
+    try {
+      const payload = await this.jwtService.verifyAsync<TokenPayload>(refreshToken, {
+        secret: this.config.refreshTokenSecret,
+      });
+      return { sub: payload.sub, email: payload.email };
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+}

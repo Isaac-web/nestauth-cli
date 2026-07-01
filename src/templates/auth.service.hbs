@@ -1,0 +1,63 @@
+import { Injectable{{#if includeRefreshToken}}, Inject{{/if}} } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+{{#if includeRefreshToken}}
+import type { ConfigType } from '@nestjs/config';
+import { authConfig } from './config/auth.config';
+import { RefreshTokenProvider } from './providers/refresh-token.provider';
+{{/if}}
+{{#if includeEmail}}
+import { EmailAuthProvider } from './providers/email-auth.provider';
+{{/if}}
+{{#if includeGoogle}}
+import { GoogleAuthProvider } from './providers/google-auth.provider';
+{{/if}}
+import { TokenPayload } from './interfaces/token-payload.interface';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly jwtService: JwtService,
+    {{#if includeRefreshToken}}
+    @Inject(authConfig.KEY) private readonly config: ConfigType<typeof authConfig>,
+    private readonly refreshTokenProvider: RefreshTokenProvider,
+    {{/if}}
+    {{#if includeEmail}}
+    private readonly emailAuthProvider: EmailAuthProvider,
+    {{/if}}
+    {{#if includeGoogle}}
+    private readonly googleAuthProvider: GoogleAuthProvider,
+    {{/if}}
+  ) {}
+
+  private generateTokens(payload: TokenPayload) {
+    const accessToken = this.jwtService.sign(payload);
+    {{#if includeRefreshToken}}
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: this.config.refreshTokenSecret,
+      expiresIn: this.config.refreshTokenExpiration,
+    });
+    return { accessToken, refreshToken };
+    {{else}}
+    return { accessToken };
+    {{/if}}
+  }
+
+  {{#if includeEmail}}
+  async loginWithEmail(email: string, password: string) {
+    const payload = await this.emailAuthProvider.validate(email, password);
+    return this.generateTokens(payload);
+  }
+  {{/if}}
+  {{#if includeGoogle}}
+  async loginWithGoogle(idToken: string) {
+    const payload = await this.googleAuthProvider.verifyIdToken(idToken);
+    return this.generateTokens(payload);
+  }
+  {{/if}}
+  {{#if includeRefreshToken}}
+  async refreshToken(token: string) {
+    const payload = await this.refreshTokenProvider.validate(token);
+    return { accessToken: this.jwtService.sign(payload) };
+  }
+  {{/if}}
+}
