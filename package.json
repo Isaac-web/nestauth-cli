@@ -1,5 +1,5 @@
 {
-  "name": "nestauth",
+  "name": "@takiy/nestauth",
   "version": "0.1.0",
   "description": "Passport-free authentication boilerplate generator for NestJS",
   "main": "dist/index.js",

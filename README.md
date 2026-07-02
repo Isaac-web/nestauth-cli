@@ -13,7 +13,7 @@
 ## Install
 
 ```bash
-npm install -g nestauth
+npm install -g @takiy/nestauth
 ```
 
 ---
@@ -21,6 +21,11 @@ npm install -g nestauth
 ## Quick Start
 
 **1. Initialize the auth structure**
+
+```bash
+# or without installing:
+npx @takiy/nestauth init
+```
 
 ```bash
 nestauth init
