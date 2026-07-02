@@ -20,7 +20,7 @@
 
 ## Usage
 
-### Option A — Global install (recommended)
+### Option A - Global install (recommended)
 
 Install once, then use `nestauth` as a regular command anywhere:
 
@@ -34,7 +34,7 @@ nestauth add google
 nestauth guard admin
 ```
 
-### Option B — npx (no install required)
+### Option B - npx (no install required)
 
 Run directly without installing. Prefix every command with `npx @takiy/nestauth`:
 
