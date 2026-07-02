@@ -1,19 +1,47 @@
-# nest-auth-cli
+<p align="center">
+  <img src="nestauth-logo.png" alt="nestauth logo" width="180" />
+</p>
 
-**Passport-free authentication boilerplate generator for NestJS.**
+<h1 align="center">nestauth</h1>
 
-![npm version](https://img.shields.io/npm/v/nest-auth-cli)
-![license](https://img.shields.io/npm/l/nest-auth-cli)
-![node](https://img.shields.io/node/v/nest-auth-cli)
+<p align="center">
+  <strong>Passport-free authentication boilerplate generator for NestJS.</strong>
+</p>
 
-`nestauth` scaffolds a complete, production-ready JWT authentication system into your existing NestJS project in seconds — with no Passport dependency. All generated code is yours to read, extend, and own.
+<p align="center">
+  <img src="https://img.shields.io/npm/v/@takiy/nestauth" alt="npm version" />
+  <img src="https://img.shields.io/npm/l/@takiy/nestauth" alt="license" />
+  <img src="https://img.shields.io/node/v/@takiy/nestauth" alt="node" />
+</p>
+
+`nestauth` scaffolds a complete, production-ready JWT authentication system into your existing NestJS project in seconds, with no Passport dependency. All generated code is yours to read, extend, and own.
 
 ---
 
-## Install
+## Usage
+
+### Option A — Global install (recommended)
+
+Install once, then use `nestauth` as a regular command anywhere:
 
 ```bash
 npm install -g @takiy/nestauth
+```
+
+```bash
+nestauth init
+nestauth add google
+nestauth guard admin
+```
+
+### Option B — npx (no install required)
+
+Run directly without installing. Prefix every command with `npx @takiy/nestauth`:
+
+```bash
+npx @takiy/nestauth init
+npx @takiy/nestauth add google
+npx @takiy/nestauth guard admin
 ```
 
 ---
@@ -23,15 +51,10 @@ npm install -g @takiy/nestauth
 **1. Initialize the auth structure**
 
 ```bash
-# or without installing:
-npx @takiy/nestauth init
-```
-
-```bash
 nestauth init
 ```
 
-Prompts you for sign-in methods, route prefix, refresh tokens, and more — then generates the full `src/auth/` folder, wires `AuthModule` into your `AppModule`, and installs required packages.
+Prompts you for sign-in methods, route prefix, refresh tokens, and more, then generates the full `src/auth/` folder, wires `AuthModule` into your `AppModule`, and installs required packages.
 
 **2. Add a login provider to an existing project**
 
@@ -45,10 +68,10 @@ Generates the provider and DTO, then wires them into `auth.module.ts`, `auth.ser
 **3. Generate a custom authorization guard**
 
 ```bash
-nestauth guard admin
+nestauth guard <name>
 ```
 
-Generates `admin.guard.ts`, adds `AuthType.Admin` to the enum, and wires the guard into `AuthenticationGuard` and `auth.module.ts` — no manual wiring needed.
+Generates a custom guard, eg: `admin.guard.ts`, adds `AuthType.Admin` to the enum, and wires the guard into `AuthenticationGuard` and `auth.module.ts` with no manual wiring needed.
 
 ---
 
@@ -150,10 +173,10 @@ GOOGLE_CLIENT_ID=          # if Google provider added
 
 ## Extending Authentication
 
-| Need | Command |
-|---|---|
-| Add a new login method | `nestauth add email` / `nestauth add google` |
-| Add a custom authorization guard | `nestauth guard <name>` |
+| Need                             | Command                                      |
+| -------------------------------- | -------------------------------------------- |
+| Add a new login method           | `nestauth add email` / `nestauth add google` |
+| Add a custom authorization guard | `nestauth guard <name>`                      |
 
 ---
 
