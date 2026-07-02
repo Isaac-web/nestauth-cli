@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import { SyntaxKind, Scope } from 'ts-morph';
 import { generateFromTemplate } from '../../../utils/generator';
-import { makeProject } from '../helpers';
+import { makeProject } from '../../../utils/project';
 
 export async function addEmail(cwd: string, authPath: string): Promise<void> {
   const providerFile = path.join(authPath, 'providers', 'email-auth.provider.ts');
