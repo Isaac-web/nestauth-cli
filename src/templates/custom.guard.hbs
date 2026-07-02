@@ -8,7 +8,7 @@ export class {{pascalName}}Guard implements CanActivate {
   canActivate({{#if includeUserExtraction}}context{{else}}_context{{/if}}: ExecutionContext): boolean {
 {{#if includeUserExtraction}}
     // NOTE: AuthType.Bearer must precede AuthType.{{pascalName}} in authTypeGuardMap
-    // so JwtGuard runs first and populates request.user.
+    // so AccessTokenGuard runs first and populates request.user.
     const request = context.switchToHttp().getRequest<Request>();
     const user = request['user'];
 

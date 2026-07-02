@@ -22,7 +22,7 @@ export function buildFileList(authPath: string, opts: FileListOptions): FileEntr
     ...(includeCurrentUserDecorator
       ? [{ template: 'current-user.decorator.hbs', target: path.join(authPath, 'decorators', 'current-user.decorator.ts') }]
       : []),
-    { template: 'jwt.guard.hbs', target: path.join(authPath, 'guards', 'jwt.guard.ts') },
+    { template: 'access-token.guard.hbs', target: path.join(authPath, 'guards', 'access-token.guard.ts') },
     { template: 'authentication.guard.hbs', target: path.join(authPath, 'guards', 'authentication.guard.ts') },
     { template: 'token-payload.interface.hbs', target: path.join(authPath, 'interfaces', 'token-payload.interface.ts') },
     { template: 'auth.module.hbs', target: path.join(authPath, 'auth.module.ts') },
