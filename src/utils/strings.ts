@@ -11,3 +11,7 @@ export function toKebab(s: string): string {
     .toLowerCase()
     .replace(/[\s_]+/g, '-');
 }
+
+export function toCamel(s: string): string {
+  return s.replace(/-./g, (m) => m[1].toUpperCase());
+}

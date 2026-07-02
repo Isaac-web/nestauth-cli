@@ -1,9 +1,21 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+{{#if includeUserExtraction}}
+import { Request } from 'express';
+{{/if}}
 
 @Injectable()
 export class {{pascalName}}Guard implements CanActivate {
-  canActivate(_context: ExecutionContext): boolean {
+  canActivate({{#if includeUserExtraction}}context{{else}}_context{{/if}}: ExecutionContext): boolean {
+{{#if includeUserExtraction}}
+    // NOTE: AuthType.Bearer must precede AuthType.{{pascalName}} in authTypeGuardMap
+    // so JwtGuard runs first and populates request.user.
+    const request = context.switchToHttp().getRequest<Request>();
+    const user = request['user'];
+
+    // TODO: implement {{pascalName}} authorization logic using `user`
+{{else}}
     // TODO: implement {{pascalName}} authorization logic
+{{/if}}
     return true;
   }
 }
