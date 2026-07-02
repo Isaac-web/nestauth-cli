@@ -1,13 +1,17 @@
 {
-  "name": "nest-auth-cli",
+  "name": "nestauth",
   "version": "0.1.0",
-  "description": "NestJS authentication generator CLI",
+  "description": "Passport-free authentication boilerplate generator for NestJS",
   "main": "dist/index.js",
   "bin": {
     "nestauth": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "rm -rf dist && tsc && cp -r src/templates dist/ && chmod +x dist/index.js",
+    "prepublishOnly": "npm run build",
     "dev": "ts-node src/index.ts",
     "start": "node dist/index.js",
     "test": "jest"
@@ -16,10 +20,21 @@
     "nestjs",
     "auth",
     "cli",
-    "generator"
+    "generator",
+    "jwt",
+    "authentication",
+    "boilerplate"
   ],
-  "author": "",
+  "author": "Isaac-web",
   "license": "ISC",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Isaac-web/nest-auth-cli.git"
+  },
+  "homepage": "https://github.com/Isaac-web/nest-auth-cli#readme",
   "dependencies": {
     "chalk": "^5.6.2",
     "commander": "^15.0.0",

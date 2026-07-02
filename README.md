@@ -13,7 +13,7 @@
 ## Install
 
 ```bash
-npm install -g nest-auth-cli
+npm install -g nestauth
 ```
 
 ---
