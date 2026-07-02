@@ -2,7 +2,7 @@
   <img src="nestauth-logo.png" alt="nestauth logo" width="180" />
 </p>
 
-<h1 align="center">nestauth</h1>
+<h1 align="center">Nest Auth CLI</h1>
 
 <p align="center">
   <strong>Passport-free authentication boilerplate generator for NestJS.</strong>
